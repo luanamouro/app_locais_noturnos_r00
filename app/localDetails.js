@@ -14,11 +14,17 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { buscarDetalhesLugar } from '../services/googlePlaces';
 
+/**
+ * Sheet de detalhes que mostra dados ricos do lugar selecionado.
+ */
 export default function LocalDetails() {
   const params = useLocalSearchParams();
   const [detalhes, setDetalhes] = useState(null);
   const [carregando, setCarregando] = useState(true);
 
+  /**
+   * Recupera os detalhes completos do Place ID recebido por parâmetro.
+   */
   const carregarDetalhes = useCallback(async () => {
     try {
       if (params.placeId) {
@@ -35,6 +41,7 @@ export default function LocalDetails() {
     carregarDetalhes();
   }, [carregarDetalhes]);
 
+  /** Abre o aplicativo de mapas nativo para navegação até o local. */
   const abrirMaps = () => {
     const url = Platform.select({
       ios: `maps://maps.apple.com/?q=${params.latitude},${params.longitude}`,
@@ -44,6 +51,7 @@ export default function LocalDetails() {
     Linking.openURL(url);
   };
 
+  /** Dispara o fluxo de compartilhamento padrão com os dados do local. */
   const compartilhar = () => {
     // Implementar compartilhamento
     const texto = `Confira ${params.name} - ${params.address}`;
@@ -52,7 +60,7 @@ export default function LocalDetails() {
     }
   };
 
-  // Traduz tipos do Google para português
+  /** Traduz tipos padrão do Google Places para rótulos em português. */
   const traduzirTipo = (tipo) => {
     const traducoes = {
       'bar': 'Bar',

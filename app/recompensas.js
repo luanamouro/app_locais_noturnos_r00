@@ -3,6 +3,9 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-nati
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
+/**
+ * Tela de fidelidade que exibe saldo de pontos e recompensas resgatáveis.
+ */
 export default function Recompensas() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 100 }}>

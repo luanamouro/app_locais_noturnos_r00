@@ -109,15 +109,21 @@ export const buscarLugaresProximos = async (
 export const buscarEstabelecimentosNoturnos = async (
   latitude,
   longitude,
-  radius = DEFAULT_RADIUS_METERS
+  radius = DEFAULT_RADIUS_METERS,
+  onProgress
 ) => {
   const tipos = ['bar', 'restaurant', 'night_club', 'cafe', 'meal_takeaway', 'liquor_store'];
   
   try {
     const todosLugares = [];
-    for (const tipo of tipos) {
+    const total = tipos.length;
+    for (let index = 0; index < total; index++) {
+      const tipo = tipos[index];
       const resultadosTipo = await fetchNearbyPages({ latitude, longitude, type: tipo, radius });
       todosLugares.push(...resultadosTipo);
+      if (typeof onProgress === 'function') {
+        onProgress((index + 1) / total);
+      }
     }
     
     const lugaresUnicos = todosLugares.filter((lugar, index, self) =>

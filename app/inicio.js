@@ -3,6 +3,9 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
+/**
+ * Hub pós-login com atalhos para mapa, perfil e recompensas.
+ */
 export default function Inicio() {
   return (
     <View style={styles.container}>

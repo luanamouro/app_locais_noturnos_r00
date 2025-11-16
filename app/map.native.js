@@ -31,6 +31,9 @@ import {
 import { VENUE_TYPES, getVenueConfigByTypes } from '../constants/venueTypes';
 import { filterPlacesWithinRadius } from '../utils/distance';
 
+const MAX_RADIUS_KM = 5;
+const MIN_ZOOM_LEVEL = 12;
+
 /**
  * Componente principal do mapa nativo.
  */
@@ -43,11 +46,18 @@ export default function Map() {
   const [buscando, setBuscando] = useState(false);
   const [mostrarLista, setMostrarLista] = useState(false);
   const [filtrosAtivos, setFiltrosAtivos] = useState([]);
-  const [radiusKm, setRadiusKm] = useState(1);
+  const [radiusKm, setRadiusKm] = useState(0.5);
   const [radiusModalVisible, setRadiusModalVisible] = useState(false);
-  const [radiusDraft, setRadiusDraft] = useState(1);
+  const [radiusDraft, setRadiusDraft] = useState(0.5);
+  const [zoomLevel, setZoomLevel] = useState(15);
+  const [helperMessage, setHelperMessage] = useState(null);
+  const [progressPercent, setProgressPercent] = useState(0);
+  const [showFetchProgress, setShowFetchProgress] = useState(false);
   const mapRef = useRef(null);
   const requestSeqRef = useRef(0);
+  const zoomLevelRef = useRef(15);
+  const radiusRef = useRef(0.5);
+  const radiusChangeTimeout = useRef(null);
 
   // Mapeia filtros brasileiros para tipos do Google Places API
   const filtrosParaTipos = useMemo(() => ({
@@ -73,12 +83,9 @@ export default function Map() {
     obterLocalizacao();
   }, []);
 
-  // Busca lugares próximos automaticamente quando obtém a localização ou filtros mudam
   useEffect(() => {
-    if (localizacaoAtual) {
-      buscarLugaresProximos();
-    }
-  }, [localizacaoAtual, buscarLugaresProximos]);
+    radiusRef.current = radiusKm;
+  }, [radiusKm]);
 
   /**
    * Solicita permissão e obtém a localização atual do usuário (alta precisão).
@@ -133,36 +140,67 @@ export default function Map() {
 
     const requestId = ++requestSeqRef.current;
     setBuscando(true);
+    setShowFetchProgress(true);
+    setProgressPercent(0);
     try {
       let resultados = [];
-      const radiusBaseKm = typeof customRadiusKm === 'number' ? customRadiusKm : radiusKm;
+      const radiusBaseKm = typeof customRadiusKm === 'number' ? customRadiusKm : radiusRef.current;
       const radiusMeters = kmToMeters(radiusBaseKm);
+
+      if (radiusBaseKm > MAX_RADIUS_KM) {
+        setHelperMessage('Aproxime mais o mapa ou reduza o raio (máx. 5km) para ver novos locais.');
+        if (requestSeqRef.current === requestId) {
+          setBuscando(false);
+          setShowFetchProgress(false);
+        }
+        return;
+      }
+
+      if (zoomLevelRef.current < MIN_ZOOM_LEVEL) {
+        setHelperMessage('Aproxime o mapa (zoom >= 12) para carregar os estabelecimentos.');
+        if (requestSeqRef.current === requestId) {
+          setBuscando(false);
+          setShowFetchProgress(false);
+        }
+        return;
+      }
+
+      setHelperMessage(null);
       
       if (filtrosAtivos.length > 0) {
-        // Busca com filtros específicos
-        const promises = filtrosAtivos.map(filtro => {
+        const total = filtrosAtivos.length;
+        let completed = 0;
+        const acumulados = [];
+        for (const filtro of filtrosAtivos) {
           const tipo = filtrosParaTipos[filtro] || 'restaurant';
-          return buscarLugaresPorTipo(
-            localizacaoAtual.latitude,
-            localizacaoAtual.longitude,
-            tipo,
-            radiusMeters
-          );
-        });
-        
-        const todosResultados = await Promise.all(promises);
-        resultados = todosResultados.flat();
+          try {
+            const resultadosTipo = await buscarLugaresPorTipo(
+              localizacaoAtual.latitude,
+              localizacaoAtual.longitude,
+              tipo,
+              radiusMeters
+            );
+            acumulados.push(...resultadosTipo);
+          } catch (err) {
+            console.error('Erro ao buscar filtro', filtro, err);
+          }
+          completed += 1;
+          setProgressPercent(Math.min(100, Math.round((completed / total) * 100)));
+        }
+        resultados = acumulados;
         
         // Remove duplicatas
         resultados = resultados.filter((lugar, index, self) =>
           index === self.findIndex((l) => l.place_id === lugar.place_id)
         );
       } else {
-        // Busca padrão (todos os tipos)
         resultados = await buscarEstabelecimentosNoturnos(
           localizacaoAtual.latitude,
           localizacaoAtual.longitude,
-          radiusMeters
+          radiusMeters,
+          (ratio) => {
+            setProgressPercent(Math.min(100, Math.round(ratio * 100)));
+          }
         );
       }
       
@@ -175,8 +213,23 @@ export default function Map() {
     }
     if (requestSeqRef.current === requestId) {
       setBuscando(false);
+      setShowFetchProgress(false);
+      setProgressPercent(100);
     }
-  }, [localizacaoAtual, filtrosAtivos, radiusKm, filtrosParaTipos]);
+  }, [localizacaoAtual, filtrosAtivos, filtrosParaTipos]);
+
+  // Busca lugares quando localização ou filtros mudam, mas desacelera repetições
+  useEffect(() => {
+    if (!localizacaoAtual) return;
+    const timeout = setTimeout(() => buscarLugaresProximos(), 300);
+    return () => clearTimeout(timeout);
+  }, [localizacaoAtual, buscarLugaresProximos]);
+
+  useEffect(() => () => {
+    if (radiusChangeTimeout.current) {
+      clearTimeout(radiusChangeTimeout.current);
+    }
+  }, []);
 
   /**
    * Realiza busca por texto com base no raio atual.
@@ -250,7 +303,22 @@ export default function Map() {
   const aplicarRaio = () => {
     setRadiusKm(radiusDraft);
     setRadiusModalVisible(false);
-    buscarLugaresProximos(radiusDraft);
+    if (radiusChangeTimeout.current) {
+      clearTimeout(radiusChangeTimeout.current);
+    }
+    radiusChangeTimeout.current = setTimeout(() => {
+      buscarLugaresProximos(radiusDraft);
+    }, 400);
+  };
+
+  /**
+   * Atualiza o nível de zoom baseado na região atual para controlar o gating.
+   */
+  const handleRegionChangeComplete = (region) => {
+    if (!region || typeof region.latitudeDelta !== 'number') return;
+    const zoom = Math.max(1, Math.round(Math.log2(360 / region.latitudeDelta)));
+    zoomLevelRef.current = zoom;
+    setZoomLevel(zoom);
   };
 
   /** Abre a tela de filtros, mantendo os filtros ativos atuais. */
@@ -287,6 +355,19 @@ export default function Map() {
 
   return (
     <View style={styles.container}>
+      {helperMessage && (
+        <View style={styles.helperBanner}>
+          <Text style={styles.helperBannerText}>{helperMessage}</Text>
+        </View>
+      )}
+      {showFetchProgress && (
+        <View style={styles.progressOverlay}>
+          <ActivityIndicator size="small" color="#fff" />
+          <Text style={styles.progressText}>
+            {`${Math.min(progressPercent, 100)}% - buscando locais incríveis para você...`}
+          </Text>
+        </View>
+      )}
       {/* MAPA */}
       <MapView
         ref={mapRef}
@@ -296,6 +377,7 @@ export default function Map() {
         showsUserLocation={true}
         showsMyLocationButton={false}
         loadingEnabled={true}
+        onRegionChangeComplete={handleRegionChangeComplete}
       >
         {/* Marcadores dos lugares encontrados */}
         {lugares.map((lugar) => {
@@ -502,18 +584,18 @@ export default function Map() {
             <Text style={styles.radiusHint}>Aplicado: {formatRadiusLabel()}</Text>
             <Slider
               style={styles.radiusSlider}
-              minimumValue={1}
-              maximumValue={10}
+              minimumValue={0.5}
+              maximumValue={5}
               value={radiusDraft}
-              step={0.5}
+              step={0.1}
               minimumTrackTintColor="#6C47FF"
               maximumTrackTintColor="#444"
               thumbTintColor="#6C47FF"
               onValueChange={setRadiusDraft}
             />
             <View style={styles.radiusScale}>
-              <Text style={styles.radiusScaleText}>1 km</Text>
-              <Text style={styles.radiusScaleText}>10 km</Text>
+              <Text style={styles.radiusScaleText}>0.5 km</Text>
+              <Text style={styles.radiusScaleText}>5 km</Text>
             </View>
             <View style={styles.radiusActions}>
               <TouchableOpacity
@@ -539,6 +621,42 @@ export default function Map() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  helperBanner: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 24 : 12,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 20,
+  },
+  helperBannerText: {
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    color: '#fff',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 18,
+    fontSize: 13,
+    textAlign: 'center',
+    marginHorizontal: 24,
+  },
+  progressOverlay: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 110 : 90,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 20,
+  },
+  progressText: {
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    color: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    fontSize: 13,
+    textAlign: 'center',
   },
   mapa: {
     flex: 1,

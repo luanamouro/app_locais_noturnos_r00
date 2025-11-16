@@ -9,6 +9,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { VENUE_TYPE_LIST } from "../constants/venueTypes";
 
+/**
+ * Lista interativa que envia os filtros selecionados de volta para o mapa.
+ */
 export default function Filtros() {
   const params = useLocalSearchParams();
   const [selecionados, setSelecionados] = useState([]);
@@ -26,6 +29,7 @@ export default function Filtros() {
     }
   }, [params.selecionados]);
 
+  /** Alterna a seleção de um filtro específico. */
   function toggleFiltro(item) {
     if (selecionados.includes(item)) {
       setSelecionados(selecionados.filter((f) => f !== item));
@@ -34,6 +38,7 @@ export default function Filtros() {
     }
   }
 
+  /** Persiste os filtros escolhidos e retorna ao mapa. */
   function aplicarFiltros() {
     router.replace({
       pathname: '/map',
@@ -41,6 +46,7 @@ export default function Filtros() {
     });
   }
 
+  /** Remove todos os filtros marcados pelo usuário. */
   function limparFiltros() {
     setSelecionados([]);
   }

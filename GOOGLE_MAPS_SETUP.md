@@ -55,7 +55,7 @@ No Google Cloud Console, configure restrições para sua chave:
 
 ✅ **Localização em tempo real**: O app solicita permissão e mostra a posição atual do usuário no mapa.
 
-✅ **Busca automática**: Ao abrir o mapa, busca automaticamente por:
+✅ **Busca automática com feedback**: Ao abrir o mapa, busca automaticamente por:
 - Bares
 - Restaurantes
 - Baladas (night_club)
@@ -71,7 +71,9 @@ No Google Cloud Console, configure restrições para sua chave:
 ✅ **Botões de controle**:
 - 🧭 Centralizar no usuário
 - 🔍 Filtros
-- 🔄 Atualizar busca
+- 🔄 Atualizar busca com indicador percentual
+
+✅ **Controle de raio**: Modal limita o valor entre 0.5 km e 5 km; acima disso ou com zoom < 12 o app orienta o usuário antes de chamar a API.
 
 ## Estrutura dos Arquivos
 
@@ -116,7 +118,7 @@ npm run ios
 
 ### Marcadores não aparecem
 - Verifique se a busca está retornando resultados (veja o console)
-- Tente aumentar o raio de busca em `services/googlePlaces.js`
+- Confirme se o zoom está ≥ 12 e o raio ≤ 5 km (limite da interface)
 - Certifique-se de que a Places API está ativada
 
 ## Segurança
