@@ -13,10 +13,17 @@ Aplicativo Expo (Android, iOS e Web) para descobrir bares, restaurantes e balada
 npm install
 ```
 
-Crie um arquivo `.env` na raiz com sua chave:
+Crie um arquivo `.env` na raiz com suas chaves e credenciais do banco:
 
 ```env
 EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=SUACHAVEAQUI
+
+# MySQL Database (para backend)
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=locais_noturnos
+DB_USER=seu_usuario
+DB_PASSWORD=sua_senha
 ```
 
 ## Executando
@@ -60,6 +67,11 @@ app_locais_noturnos/
 │  ├─ map.native.js        # Mapa nativo (Android/iOS)
 │  ├─ filtros.js           # Tela de filtros
 │  └─ ...
+├─ lib/                    # Camada de banco de dados MySQL
+│  ├─ database/            # Pool de conexões e migrations
+│  ├─ repositories/        # CRUD para usuários, locais, reviews, favoritos, check-ins
+│  ├─ models/              # Definições de tipos JSDoc
+│  └─ utils/               # Logger e erros customizados
 ├─ constants/              # Metadados de tipos de locais
 │  └─ venueTypes.js
 ├─ services/
@@ -76,6 +88,7 @@ app_locais_noturnos/
 
 - A Nearby Search do Places retorna até 20 resultados por requisição. Como buscamos múltiplos tipos, o app combina resultados e remove duplicados.
 - Para reduzir avisos de engine, prefira Node 20.19+
+- **Banco de Dados MySQL**: A pasta `lib/` contém toda a infraestrutura de banco (pools, repositórios, migrations). Consulte `lib/README.md` para instruções completas de setup e uso.
 
 ## Licença
 
