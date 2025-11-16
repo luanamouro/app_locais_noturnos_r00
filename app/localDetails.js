@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,12 @@ import {
   Image,
   ActivityIndicator,
   Platform,
-  Linking
+  Linking,
+  Alert,
+  Modal,
+  Pressable,
+  Share,
+  TouchableWithoutFeedback
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
@@ -21,10 +26,12 @@ export default function LocalDetails() {
   const params = useLocalSearchParams();
   const [detalhes, setDetalhes] = useState(null);
   const [carregando, setCarregando] = useState(true);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
 
   /**
    * Recupera os detalhes completos do Place ID recebido por parâmetro.
    */
+  /** Carrega os detalhes completos do lugar usando a Places Details API. */
   const carregarDetalhes = useCallback(async () => {
     try {
       if (params.placeId) {
@@ -42,6 +49,7 @@ export default function LocalDetails() {
   }, [carregarDetalhes]);
 
   /** Abre o aplicativo de mapas nativo para navegação até o local. */
+  /** Abre o aplicativo de mapas adequado apontando para o local atual. */
   const abrirMaps = () => {
     const url = Platform.select({
       ios: `maps://maps.apple.com/?q=${params.latitude},${params.longitude}`,
@@ -52,13 +60,104 @@ export default function LocalDetails() {
   };
 
   /** Dispara o fluxo de compartilhamento padrão com os dados do local. */
-  const compartilhar = () => {
-    // Implementar compartilhamento
-    const texto = `Confira ${params.name} - ${params.address}`;
-    if (Platform.OS === 'web') {
-      navigator.share?.({ title: params.name, text: texto });
+  /** Link canônico do local (Google Maps) usado em todos os compartilhamentos. */
+  const shareLink = useMemo(() => {
+    if (params.latitude && params.longitude) {
+      return `https://www.google.com/maps/search/?api=1&query=${params.latitude},${params.longitude}&query_place_id=${params.placeId || ''}`;
     }
+    if (params.placeId) {
+      return `https://www.google.com/maps/place/?q=place_id:${params.placeId}`;
+    }
+    return 'https://maps.google.com';
+  }, [params.latitude, params.longitude, params.placeId]);
+
+  /** Mensagem consolidada com nome/endereço para reutilizar nas ações de share. */
+  const shareMessage = useMemo(() => {
+    const nomeLocal = params.name || 'Local imperdível';
+    const enderecoLocal = params.address ? ` - ${params.address}` : '';
+    return `${nomeLocal}${enderecoLocal}\n${shareLink}`;
+  }, [params.name, params.address, shareLink]);
+
+  const encodedMessage = useMemo(() => encodeURIComponent(shareMessage), [shareMessage]);
+  const encodedLink = useMemo(() => encodeURIComponent(shareLink), [shareLink]);
+
+  /** Configuração da grade de apps exibida no modal de compartilhamento. */
+  const shareOptions = useMemo(() => ([
+    { id: 'whatsapp', icon: 'logo-whatsapp', label: 'WhatsApp' },
+    { id: 'instagram', icon: 'logo-instagram', label: 'Instagram' },
+    { id: 'x', customIcon: 'X', label: 'X' },
+    { id: 'mensagens', icon: 'chatbubble-ellipses-outline', label: 'Mensagens' },
+    { id: 'facebook', icon: 'logo-facebook', label: 'Facebook' },
+  ]), []);
+
+  const closeShareModal = () => setShareModalVisible(false);
+
+  const compartilhar = () => {
+    setShareModalVisible(true);
   };
+
+  /** Tenta abrir um esquema específico com fallback web e trata falhas de deep link. */
+  const openUrl = useCallback(async (primary, fallback) => {
+    try {
+      if (primary) {
+        const canOpenPrimary = await Linking.canOpenURL(primary);
+        if (canOpenPrimary) {
+          await Linking.openURL(primary);
+          return true;
+        }
+      }
+      if (fallback) {
+        await Linking.openURL(fallback);
+        return true;
+      }
+      throw new Error('UNAVAILABLE');
+    } catch (error) {
+      Alert.alert('Compartilhamento indisponível', 'Não foi possível abrir o app selecionado.');
+      return false;
+    } finally {
+      closeShareModal();
+    }
+  }, []);
+
+  /** Executa a ação adequada (deep link ou Share API) para cada ícone selecionado. */
+  const handleShareOption = useCallback(async (optionId) => {
+    switch (optionId) {
+      case 'whatsapp': {
+        const deepLink = `whatsapp://send?text=${encodedMessage}`;
+        const webLink = `https://wa.me/?text=${encodedMessage}`;
+        await openUrl(deepLink, webLink);
+        break;
+      }
+      case 'instagram': {
+        try {
+          await Share.share({ message: shareMessage });
+        } catch (error) {
+          Alert.alert('Compartilhamento indisponível', 'Não foi possível abrir o compartilhamento agora.');
+        } finally {
+          closeShareModal();
+        }
+        break;
+      }
+      case 'x': {
+        const tweetLink = `https://twitter.com/intent/tweet?text=${encodedMessage}`;
+        await openUrl(tweetLink);
+        break;
+      }
+      case 'mensagens': {
+        const smsParam = Platform.OS === 'ios' ? '&' : '?';
+        const smsLink = `sms:${smsParam}body=${encodedMessage}`;
+        await openUrl(smsLink);
+        break;
+      }
+      case 'facebook': {
+        const fbLink = `https://www.facebook.com/sharer/sharer.php?u=${encodedLink}&quote=${encodedMessage}`;
+        await openUrl(fbLink);
+        break;
+      }
+      default:
+        closeShareModal();
+    }
+  }, [encodedMessage, encodedLink, openUrl, shareMessage]);
 
   /** Traduz tipos padrão do Google Places para rótulos em português. */
   const traduzirTipo = (tipo) => {
@@ -239,6 +338,39 @@ export default function LocalDetails() {
       >
         <Ionicons name="arrow-back" size={28} color="#fff" />
       </TouchableOpacity>
+
+      <Modal
+        visible={shareModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeShareModal}
+      >
+        <Pressable style={styles.shareModalBackdrop} onPress={closeShareModal}>
+          <TouchableWithoutFeedback>
+            <View style={styles.shareModalContent}>
+              <Text style={styles.shareModalTitle}>Compartilhar</Text>
+              <View style={styles.shareOptionsRow}>
+                {shareOptions.map((option) => (
+                  <TouchableOpacity
+                    key={option.id}
+                    style={styles.shareOptionButton}
+                    onPress={() => handleShareOption(option.id)}
+                  >
+                    <View style={styles.shareOptionIconWrapper}>
+                      {option.customIcon ? (
+                        <Text style={styles.shareOptionCustomIcon}>{option.customIcon}</Text>
+                      ) : (
+                        <Ionicons name={option.icon} size={26} color="#111" />
+                      )}
+                    </View>
+                    <Text style={styles.shareOptionLabel}>{option.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -403,5 +535,60 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 50,
     zIndex: 5,
+  },
+  shareModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    padding: 24,
+  },
+  shareModalContent: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#f2f2f2',
+    borderRadius: 24,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  shareModalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 16,
+  },
+  shareOptionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  shareOptionButton: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  shareOptionIconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+  },
+  shareOptionLabel: {
+    fontSize: 12,
+    color: '#333',
+    fontWeight: '600',
+  },
+  shareOptionCustomIcon: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#111',
   },
 });

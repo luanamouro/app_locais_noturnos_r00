@@ -32,6 +32,9 @@ DB_PASSWORD=sua_senha
 # Dev server (escolha a plataforma no menu)
 npx expo start
 
+# Dev server com tunneling (útil em redes restritas)
+npx expo start --tunnel
+
 # Web direto
 npm run web
 

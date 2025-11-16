@@ -9,8 +9,10 @@ export const kmToMeters = (km) => Math.max(0, Math.round(km * 1000));
 
 const MAX_PAGES = 3; // Google Places retorna no máximo 60 resultados (3 páginas de 20)
 
+/** Promessa utilitária para aguardar entre as chamadas paginadas. */
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Monta a URL de Nearby Search levando em conta paginação e tipo. */
 const buildNearbyUrl = ({ latitude, longitude, type, radius, pageToken }) => {
   const base = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json';
   const params = new URLSearchParams();
@@ -27,6 +29,7 @@ const buildNearbyUrl = ({ latitude, longitude, type, radius, pageToken }) => {
   return `${base}?${params.toString()}`;
 };
 
+/** Executa a paginação completa da Nearby Search respeitando limites do Google. */
 async function fetchNearbyPages({ latitude, longitude, type, radius }) {
   let pageToken;
   const allResults = [];
@@ -182,6 +185,7 @@ export const buscarDetalhesLugar = async (placeId) => {
  * @param {number} [radius=DEFAULT_RADIUS_METERS]
  * @returns {Promise<Array>} Resultados encontrados
  */
+/** Monta a URL de Text Search com suporte a paginação. */
 const buildTextSearchUrl = ({ query, latitude, longitude, radius, pageToken }) => {
   const base = 'https://maps.googleapis.com/maps/api/place/textsearch/json';
   const params = new URLSearchParams();
@@ -198,6 +202,7 @@ const buildTextSearchUrl = ({ query, latitude, longitude, radius, pageToken }) =
   return `${base}?${params.toString()}`;
 };
 
+/** Faz paginação de Text Search com esperas automáticas para next_page_token. */
 async function fetchTextSearchPages({ query, latitude, longitude, radius }) {
   let pageToken;
   const allResults = [];
