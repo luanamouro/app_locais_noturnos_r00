@@ -2,7 +2,9 @@ import { router } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-
+/**
+ * Landing page que apresenta opções rápidas de autenticação e navegação.
+ */
 export default function HomeScreen() {
   return (
     <View style={styles.container}>

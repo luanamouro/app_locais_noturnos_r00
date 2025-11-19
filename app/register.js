@@ -2,7 +2,9 @@ import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-
+/**
+ * Fluxo de registro mínimo que coleta credenciais antes de enviar ao backend.
+ */
 export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');

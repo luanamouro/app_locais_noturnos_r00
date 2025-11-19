@@ -3,6 +3,9 @@ import { router } from "expo-router";
 import React from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
+/**
+ * Área pessoal que centraliza métricas do usuário e atalhos para recursos sociais.
+ */
 export default function Perfil() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 80 }}>
