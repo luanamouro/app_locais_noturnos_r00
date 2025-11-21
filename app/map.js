@@ -35,6 +35,7 @@ export default function MapWeb() {
   const [buscaTexto, setBuscaTexto] = useState("");
   const [lugares, setLugares] = useState([]);
   const [filtrosAtivos, setFiltrosAtivos] = useState([]);
+  const [notaMinima, setNotaMinima] = useState(0);
   const [localizacaoAtual, setLocalizacaoAtual] = useState(null);
   const [radiusKm, setRadiusKm] = useState(1);
   const [radiusModalVisible, setRadiusModalVisible] = useState(false);
@@ -64,7 +65,13 @@ export default function MapWeb() {
         setFiltrosAtivos(filtrosArray);
       } catch {}
     }
-  }, [params.filtros]);
+    if (params.notaMinima) {
+      const nota = parseFloat(params.notaMinima);
+      if (!isNaN(nota)) {
+        setNotaMinima(nota);
+      }
+    }
+  }, [params.filtros, params.notaMinima]);
 
   useEffect(() => {
     obterLocalizacao();
@@ -144,8 +151,12 @@ export default function MapWeb() {
         );
       }
       const filtrados = filterPlacesWithinRadius(resultados, localizacaoAtual, radiusMeters);
+      const comNotaMinima = notaMinima > 0
+        ? filtrados.filter(lugar => (lugar.rating || 0) >= notaMinima)
+        : filtrados;
+      
       if (requestSeqRef.current === requestId) {
-        setLugares(filtrados);
+        setLugares(comNotaMinima);
       }
     } catch (error) {
       console.error("Erro ao buscar lugares (web):", error);
@@ -153,7 +164,7 @@ export default function MapWeb() {
     if (requestSeqRef.current === requestId) {
       setBuscando(false);
     }
-  }, [localizacaoAtual, filtrosAtivos, radiusKm, filtrosParaTipos]);
+  }, [localizacaoAtual, filtrosAtivos, radiusKm, filtrosParaTipos, notaMinima]);
 
   /**
    * Realiza busca por texto com base no raio atual.
@@ -169,7 +180,11 @@ export default function MapWeb() {
         kmToMeters(radiusKm)
       );
       const filtrados = filterPlacesWithinRadius(resultados, localizacaoAtual, kmToMeters(radiusKm));
-      setLugares(filtrados);
+      const comNotaMinima = notaMinima > 0
+        ? filtrados.filter(lugar => (lugar.rating || 0) >= notaMinima)
+        : filtrados;
+      
+      setLugares(comNotaMinima);
     } catch (error) {
       console.error("Erro ao buscar (web):", error);
     }
@@ -242,7 +257,10 @@ export default function MapWeb() {
   const abrirFiltros = () => {
     router.push({
       pathname: "/filtros",
-      params: { selecionados: JSON.stringify(filtrosAtivos) },
+      params: { 
+        selecionados: JSON.stringify(filtrosAtivos),
+        notaMinima: notaMinima.toString()
+      },
     });
   };
 

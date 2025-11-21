@@ -46,6 +46,7 @@ export default function Map() {
   const [buscando, setBuscando] = useState(false);
   const [mostrarLista, setMostrarLista] = useState(false);
   const [filtrosAtivos, setFiltrosAtivos] = useState([]);
+  const [notaMinima, setNotaMinima] = useState(0);
   const [radiusKm, setRadiusKm] = useState(0.5);
   const [radiusModalVisible, setRadiusModalVisible] = useState(false);
   const [radiusDraft, setRadiusDraft] = useState(0.5);
@@ -76,7 +77,13 @@ export default function Map() {
       const filtrosArray = JSON.parse(params.filtros);
       setFiltrosAtivos(filtrosArray);
     }
-  }, [params.filtros]);
+    if (params.notaMinima) {
+      const nota = parseFloat(params.notaMinima);
+      if (!isNaN(nota)) {
+        setNotaMinima(nota);
+      }
+    }
+  }, [params.filtros, params.notaMinima]);
 
   // Solicita permissão e obtém localização atual
   useEffect(() => {
@@ -205,8 +212,12 @@ export default function Map() {
       }
       
       const filtrados = filterPlacesWithinRadius(resultados, localizacaoAtual, radiusMeters);
+      const comNotaMinima = notaMinima > 0
+        ? filtrados.filter(lugar => (lugar.rating || 0) >= notaMinima)
+        : filtrados;
+      
       if (requestSeqRef.current === requestId) {
-        setLugares(filtrados);
+        setLugares(comNotaMinima);
       }
     } catch (error) {
       console.error('Erro ao buscar lugares:', error);
@@ -216,7 +227,7 @@ export default function Map() {
       setShowFetchProgress(false);
       setProgressPercent(100);
     }
-  }, [localizacaoAtual, filtrosAtivos, filtrosParaTipos]);
+  }, [localizacaoAtual, filtrosAtivos, filtrosParaTipos, notaMinima]);
 
   // Busca lugares quando localização ou filtros mudam, mas desacelera repetições
   useEffect(() => {
@@ -247,7 +258,11 @@ export default function Map() {
       );
       
       const filtrados = filterPlacesWithinRadius(resultados, localizacaoAtual, kmToMeters(radiusKm));
-      setLugares(filtrados);
+      const comNotaMinima = notaMinima > 0
+        ? filtrados.filter(lugar => (lugar.rating || 0) >= notaMinima)
+        : filtrados;
+      
+      setLugares(comNotaMinima);
     } catch (error) {
       console.error('Erro ao buscar:', error);
       Alert.alert('Erro', 'Não foi possível realizar a busca.');
@@ -325,7 +340,10 @@ export default function Map() {
   const abrirFiltros = () => {
     router.push({
       pathname: '/filtros',
-      params: { selecionados: JSON.stringify(filtrosAtivos) },
+      params: { 
+        selecionados: JSON.stringify(filtrosAtivos),
+        notaMinima: notaMinima.toString()
+      },
     });
   };
 
