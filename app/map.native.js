@@ -243,26 +243,24 @@ export default function Map() {
   }, []);
 
   /**
-   * Realiza busca por texto com base no raio atual.
+   * Realiza busca por texto SEM considerar filtros ou raio.
+   * A busca por texto ignora todos os filtros ativos e controles de range.
    */
   const realizarBusca = async () => {
     if (!buscaTexto.trim() || !localizacaoAtual) return;
 
     setBuscando(true);
     try {
+      // Usa raio generoso (50km) para não limitar buscas por texto
       const resultados = await buscarPorTexto(
         buscaTexto,
         localizacaoAtual.latitude,
         localizacaoAtual.longitude,
-        kmToMeters(radiusKm)
+        50000 // 50km em metros
       );
       
-      const filtrados = filterPlacesWithinRadius(resultados, localizacaoAtual, kmToMeters(radiusKm));
-      const comNotaMinima = notaMinima > 0
-        ? filtrados.filter(lugar => (lugar.rating || 0) >= notaMinima)
-        : filtrados;
-      
-      setLugares(comNotaMinima);
+      // Define resultados diretamente sem aplicar filtros de raio ou nota
+      setLugares(resultados);
     } catch (error) {
       console.error('Erro ao buscar:', error);
       Alert.alert('Erro', 'Não foi possível realizar a busca.');
@@ -279,7 +277,7 @@ export default function Map() {
       params: { 
         placeId: lugar.place_id,
         name: lugar.name,
-        address: lugar.vicinity,
+        address: lugar.vicinity || lugar.formatted_address || '',
         rating: lugar.rating || 0,
         totalRatings: lugar.user_ratings_total || 0,
         types: JSON.stringify(lugar.types || []),
