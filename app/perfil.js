@@ -1,52 +1,95 @@
-import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Alert } from 'react-native';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
- * Área pessoal que centraliza métricas do usuário e atalhos para recursos sociais.
+ * Tela de Perfil carregando dados do usuário autenticado da API.
  */
 export default function Perfil() {
+  const { user, signed, refreshProfile, signOut, updateProfile } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [updating, setUpdating] = useState(false);
+
+  useEffect(() => {
+    if (signed) {
+      loadProfile();
+    }
+  }, [signed]);
+
+  async function loadProfile() {
+    setLoading(true);
+    try {
+      await refreshProfile();
+    } catch (error) {
+      Alert.alert('Erro', error.message || 'Erro ao carregar perfil');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDummyUpdate() {
+    if (!user) return;
+    setUpdating(true);
+    try {
+      await updateProfile({ name: user.name + ' ✨' });
+      Alert.alert('Sucesso', 'Nome atualizado!');
+    } catch (error) {
+      Alert.alert('Erro', error.message || 'Falha ao atualizar');
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  if (!signed) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.infoText}>Você não está logado.</Text>
+        <TouchableOpacity style={styles.button} onPress={() => router.replace('/login')}>
+          <Text style={styles.buttonText}>Ir para Login</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 80 }}>
+      {loading ? (
+        <View style={styles.center}> 
+          <ActivityIndicator size="large" color="#007BFF" />
+          <Text style={styles.infoText}>Carregando perfil...</Text>
+        </View>
+      ) : (
+        <>
+          <View style={styles.header}>
+            <Ionicons name="person-circle-outline" size={110} color="#444" />
+            <Text style={styles.userName}>{user?.name}</Text>
+            <Text style={styles.score}>{user?.email}</Text>
+          </View>
 
-      {/* Ícone de Usuário */}
-      <View style={styles.header}>
-        <Ionicons name="person-circle-outline" size={110} color="#444" />
-        <Text style={styles.userName}>Nome do Usuário</Text>
-        <Text style={styles.score}>⭐ Pontuação: 4.7</Text>
-      </View>
+          <Text style={styles.sectionTitle}>Ações</Text>
 
-      {/* Avaliações */}
-      <Text style={styles.sectionTitle}>Avaliações</Text>
+          <TouchableOpacity style={styles.button} onPress={handleDummyUpdate} disabled={updating}>
+            {updating ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Adicionar ✨ ao Nome</Text>}
+          </TouchableOpacity>
 
-      <View style={styles.ratingBox}>
-        <Text style={styles.ratingItem}>🍺 Bares: ⭐⭐⭐⭐☆ (4.0)</Text>
-        <Text style={styles.ratingItem}>🍽 Restaurantes: ⭐⭐⭐⭐⭐ (5.0)</Text>
-        <Text style={styles.ratingItem}>🎉 Baladas: ⭐⭐⭐⭐☆ (4.2)</Text>
-      </View>
+          <TouchableOpacity style={styles.button} onPress={signOut}>
+            <Text style={styles.buttonText}>Sair</Text>
+          </TouchableOpacity>
 
-      {/* Botões */}
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => router.push("/fotos")}
-        >
-        <Text style={styles.buttonText}>Fotos</Text>
-    </TouchableOpacity>
+          <TouchableOpacity style={styles.button} onPress={() => router.push('/fotos')}>
+            <Text style={styles.buttonText}>Fotos</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.button} onPress={() => router.push('/recompensas')}>
+            <Text style={styles.buttonText}>Recompensas</Text>
+          </TouchableOpacity>
+        </>
+      )}
 
-
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => router.push("/recompensas")}
-        >
-          <Text style={styles.buttonText}>Recompensas</Text>
-        </TouchableOpacity>
-
-      {/* Botão Voltar */}
       <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
         <Ionicons name="arrow-back-circle" size={55} color="#555" />
       </TouchableOpacity>
-
     </ScrollView>
   );
 }
@@ -54,65 +97,61 @@ export default function Perfil() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: '#FAFAFA',
     paddingHorizontal: 20,
   },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 80,
+  },
   header: {
-    alignItems: "center",
+    alignItems: 'center',
     marginTop: 40,
     marginBottom: 20,
   },
   userName: {
     fontSize: 24,
-    fontWeight: "600",
+    fontWeight: '600',
     marginTop: 10,
-    color: "#222",
+    color: '#222',
   },
   score: {
     fontSize: 16,
-    color: "#777",
+    color: '#777',
     marginTop: 4,
   },
   sectionTitle: {
     fontSize: 22,
-    fontWeight: "600",
+    fontWeight: '600',
     marginBottom: 10,
     marginTop: 20,
-    color: "#222",
-  },
-  ratingBox: {
-    backgroundColor: "#fff",
-    padding: 15,
-    borderRadius: 10,
-    elevation: 2,
-  },
-  ratingItem: {
-    fontSize: 16,
-    paddingVertical: 4,
-    color: "#444",
-  },
-  buttonsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-evenly",
-    marginTop: 35,
+    color: '#222',
   },
   button: {
-    backgroundColor: "#007BFF",
+    backgroundColor: '#007BFF',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 10,
     elevation: 2,
-    minWidth: 130,
-    alignItems: "center",
+    minWidth: 160,
+    alignItems: 'center',
+    marginBottom: 12,
   },
   buttonText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 17,
-    fontWeight: "500",
+    fontWeight: '500',
   },
   backButton: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 20,
     left: 20,
-  }
+  },
+  infoText: {
+    color: '#555',
+    marginTop: 15,
+    fontSize: 16,
+  },
 });

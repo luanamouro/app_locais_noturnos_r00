@@ -1,13 +1,32 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
- * Tela de autenticação básica que captura email/senha antes de redirecionar.
+ * Tela de login integrada ao backend.
  */
 export default function LoginScreen() {
+  const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogin() {
+    if (!email.trim() || !senha) {
+      Alert.alert('Erro', 'Informe email e senha');
+      return;
+    }
+    setLoading(true);
+    try {
+      await signIn(email.trim(), senha);
+      router.replace('/inicio');
+    } catch (error) {
+      Alert.alert('Erro', error.message || 'Falha no login');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <View style={styles.container}>
@@ -21,6 +40,7 @@ export default function LoginScreen() {
         autoCapitalize="none"
         value={email}
         onChangeText={setEmail}
+        editable={!loading}
       />
 
       <TextInput
@@ -30,16 +50,24 @@ export default function LoginScreen() {
         secureTextEntry
         value={senha}
         onChangeText={setSenha}
+        editable={!loading}
       />
 
       <TouchableOpacity
-        style={styles.button}
-        onPress={() => router.push('/inicio')}
+        style={[styles.button, loading && styles.buttonDisabled]}
+        onPress={handleLogin}
+        disabled={loading}
       >
-      <Text style={styles.buttonText}>Entrar</Text>
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Entrar</Text>}
       </TouchableOpacity>
 
-
+      <TouchableOpacity
+        style={styles.linkButton}
+        onPress={() => router.push('/register')}
+        disabled={loading}
+      >
+        <Text style={styles.linkText}>Não tem conta? Registrar</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -78,9 +106,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
   },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   buttonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+  },
+  linkButton: {
+    marginTop: 20,
+  },
+  linkText: {
+    color: '#34A853',
+    fontSize: 16,
   },
 });

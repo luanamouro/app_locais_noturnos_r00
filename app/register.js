@@ -1,17 +1,61 @@
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ActivityIndicator } from 'react-native';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
- * Fluxo de registro mínimo que coleta credenciais antes de enviar ao backend.
+ * Fluxo de registro que envia dados ao backend via API.
  */
 export default function RegisterScreen() {
+  const { signUp } = useAuth();
+  
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function handleRegister() {
+    if (!name.trim()) {
+      Alert.alert('Erro', 'Por favor, informe seu nome');
+      return;
+    }
+    if (!email.trim()) {
+      Alert.alert('Erro', 'Por favor, informe seu email');
+      return;
+    }
+    if (!senha) {
+      Alert.alert('Erro', 'Por favor, informe sua senha');
+      return;
+    }
+    if (senha.length < 6) {
+      Alert.alert('Erro', 'A senha deve ter no mínimo 6 caracteres');
+      return;
+    }
+    setLoading(true);
+    try {
+      await signUp(email.trim(), senha, name.trim());
+      Alert.alert('Sucesso', 'Conta criada com sucesso!');
+      router.replace('/inicio');
+    } catch (error) {
+      Alert.alert('Erro', error.message || 'Erro ao criar conta');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Registrar</Text>
+
+      <TextInput
+        style={styles.input}
+        placeholder="Nome"
+        placeholderTextColor="#888"
+        autoCapitalize="words"
+        value={name}
+        onChangeText={setName}
+        editable={!loading}
+      />
 
       <TextInput
         style={styles.input}
@@ -21,6 +65,7 @@ export default function RegisterScreen() {
         autoCapitalize="none"
         value={email}
         onChangeText={setEmail}
+        editable={!loading}
       />
 
       <TextInput
@@ -30,16 +75,24 @@ export default function RegisterScreen() {
         secureTextEntry
         value={senha}
         onChangeText={setSenha}
+        editable={!loading}
       />
 
-    <TouchableOpacity
-        style={styles.button}
-        onPress={() => router.push('/inicio')}
-    >
-        <Text style={styles.buttonText}>Registrar</Text>
-    </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.button, loading && styles.buttonDisabled]}
+        onPress={handleRegister}
+        disabled={loading}
+      >
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Registrar</Text>}
+      </TouchableOpacity>
 
-
+      <TouchableOpacity
+        style={styles.linkButton}
+        onPress={() => router.back()}
+        disabled={loading}
+      >
+        <Text style={styles.linkText}>Já tem conta? Faça login</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -78,9 +131,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
   },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   buttonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+  },
+  linkButton: {
+    marginTop: 20,
+  },
+  linkText: {
+    color: '#4285F4',
+    fontSize: 16,
   },
 });
