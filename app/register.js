@@ -1,18 +1,30 @@
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ActivityIndicator } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { useLocalSearchParams } from 'expo-router';
 
 /**
  * Fluxo de registro que envia dados ao backend via API.
  */
 export default function RegisterScreen() {
   const { signUp } = useAuth();
+  const { emailInicial, motivo } = useLocalSearchParams();
   
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
+  const [bannerMessage, setBannerMessage] = useState(null);
+
+  useEffect(() => {
+    if (emailInicial && !email) {
+      setEmail(String(emailInicial));
+    }
+    if (motivo) {
+      setBannerMessage(String(motivo));
+    }
+  }, [emailInicial, motivo]);
 
   async function handleRegister() {
     if (!name.trim()) {
@@ -46,6 +58,12 @@ export default function RegisterScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Registrar</Text>
+
+      {bannerMessage && (
+        <View style={styles.banner}>
+          <Text style={styles.bannerText}>{bannerMessage}</Text>
+        </View>
+      )}
 
       <TextInput
         style={styles.input}
@@ -145,5 +163,18 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#4285F4',
     fontSize: 16,
+  },
+  banner: {
+    width: '85%',
+    backgroundColor: '#222',
+    borderLeftWidth: 4,
+    borderLeftColor: '#4285F4',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  bannerText: {
+    color: '#fff',
+    fontSize: 14,
   },
 });

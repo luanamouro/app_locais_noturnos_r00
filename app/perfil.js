@@ -8,9 +8,8 @@ import { useAuth } from '../contexts/AuthContext';
  * Tela de Perfil carregando dados do usuário autenticado da API.
  */
 export default function Perfil() {
-  const { user, signed, refreshProfile, signOut, updateProfile } = useAuth();
+  const { user, signed, refreshProfile, signOut } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     if (signed) {
@@ -29,18 +28,7 @@ export default function Perfil() {
     }
   }
 
-  async function handleDummyUpdate() {
-    if (!user) return;
-    setUpdating(true);
-    try {
-      await updateProfile({ name: user.name + ' ✨' });
-      Alert.alert('Sucesso', 'Nome atualizado!');
-    } catch (error) {
-      Alert.alert('Erro', error.message || 'Falha ao atualizar');
-    } finally {
-      setUpdating(false);
-    }
-  }
+  // Removido: ação de adicionar estrelas ao nome (não utilizada)
 
   if (!signed) {
     return (
@@ -70,19 +58,17 @@ export default function Perfil() {
 
           <Text style={styles.sectionTitle}>Ações</Text>
 
-          <TouchableOpacity style={styles.button} onPress={handleDummyUpdate} disabled={updating}>
-            {updating ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Adicionar ✨ ao Nome</Text>}
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.button} onPress={signOut}>
-            <Text style={styles.buttonText}>Sair</Text>
-          </TouchableOpacity>
-
+          {/* Ordem: Fotos, Recompensas, Sair */}
           <TouchableOpacity style={styles.button} onPress={() => router.push('/fotos')}>
             <Text style={styles.buttonText}>Fotos</Text>
           </TouchableOpacity>
+
           <TouchableOpacity style={styles.button} onPress={() => router.push('/recompensas')}>
             <Text style={styles.buttonText}>Recompensas</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.button, styles.dangerButton]} onPress={signOut}>
+            <Text style={styles.buttonText}>Sair</Text>
           </TouchableOpacity>
         </>
       )}
@@ -138,6 +124,9 @@ const styles = StyleSheet.create({
     minWidth: 160,
     alignItems: 'center',
     marginBottom: 12,
+  },
+  dangerButton: {
+    backgroundColor: '#DB4437',
   },
   buttonText: {
     color: '#fff',

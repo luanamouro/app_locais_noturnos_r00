@@ -94,7 +94,9 @@ export function AuthProvider({ children }) {
       
       return userData;
     } catch (error) {
-      throw new Error(error.message || 'Erro ao fazer login');
+      const e = new Error(error.message || 'Erro ao fazer login');
+      if (error.code) e.code = error.code;
+      throw e;
     }
   }
 
@@ -119,7 +121,9 @@ export function AuthProvider({ children }) {
       
       return userData;
     } catch (error) {
-      throw new Error(error.message || 'Erro ao registrar usuário');
+      const e = new Error(error.message || 'Erro ao registrar usuário');
+      if (error.code) e.code = error.code;
+      throw e;
     }
   }
 

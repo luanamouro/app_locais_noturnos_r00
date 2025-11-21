@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -22,7 +23,20 @@ export default function LoginScreen() {
       await signIn(email.trim(), senha);
       router.replace('/inicio');
     } catch (error) {
-      Alert.alert('Erro', error.message || 'Falha no login');
+      if (error.code === 'USER_NOT_FOUND') {
+        // Redireciona para registro com email pré-preenchido
+        router.push({
+          pathname: '/register',
+          params: {
+            emailInicial: email.trim(),
+            motivo: 'Email não encontrado. Crie sua conta.'
+          }
+        });
+      } else if (error.code === 'INVALID_PASSWORD') {
+        Alert.alert('Erro', 'Senha incorreta');
+      } else {
+        Alert.alert('Erro', error.message || 'Falha no login');
+      }
     } finally {
       setLoading(false);
     }
@@ -30,7 +44,20 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Login</Text>
+      <Text style={styles.title}>Bora Sair</Text>
+
+      {/* Botão Google Login (placeholder) */}
+      <TouchableOpacity style={[styles.googleButton, loading && styles.buttonDisabled]} disabled={loading}>
+        <Ionicons name="logo-google" size={22} color="#fff" style={{ marginRight: 8 }} />
+        <Text style={styles.googleButtonText}>Continuar com Google</Text>
+      </TouchableOpacity>
+
+      {/* Divisor */}
+      <View style={styles.dividerContainer}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>ou</Text>
+        <View style={styles.dividerLine} />
+      </View>
 
       <TextInput
         style={styles.input}
@@ -105,6 +132,39 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 10,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '85%',
+    backgroundColor: '#DB4437',
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  googleButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '85%',
+    marginBottom: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#333',
+  },
+  dividerText: {
+    color: '#666',
+    marginHorizontal: 10,
+    fontSize: 14,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   buttonDisabled: {
     opacity: 0.6,

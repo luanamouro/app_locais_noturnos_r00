@@ -69,7 +69,13 @@ async function request(endpoint, options = {}) {
     }
 
     if (!response.ok) {
-      throw new Error(parsed.error || `Erro na requisição (${response.status})`);
+      const errMsg = parsed.error?.message || parsed.error || parsed.message || `Erro na requisição (${response.status})`;
+      const err = new Error(errMsg);
+      // Tenta extrair code em diferentes formatos
+      if (parsed.error?.code) err.code = parsed.error.code;
+      else if (parsed.code) err.code = parsed.code;
+      else if (parsed.error?.name === 'UserNotFoundError') err.code = 'USER_NOT_FOUND';
+      throw err;
     }
     return parsed;
   } catch (error) {
