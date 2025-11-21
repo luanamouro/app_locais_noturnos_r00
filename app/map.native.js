@@ -27,9 +27,9 @@ import {
   buscarPorTexto,
   buscarLugaresProximos as buscarLugaresPorTipo,
   kmToMeters,
-} from '../services/googlePlaces';
-import { VENUE_TYPES, getVenueConfigByTypes } from '../constants/venueTypes';
-import { filterPlacesWithinRadius } from '../utils/distance';
+} from '../lib/services/googlePlaces';
+import { VENUE_TYPES, getVenueConfigByTypes } from '../lib/constants/venueTypes';
+import { filterPlacesWithinRadius } from '../lib/utils/distance';
 
 const MAX_RADIUS_KM = 5;
 const MIN_ZOOM_LEVEL = 12;
@@ -46,6 +46,7 @@ export default function Map() {
   const [buscando, setBuscando] = useState(false);
   const [mostrarLista, setMostrarLista] = useState(false);
   const [filtrosAtivos, setFiltrosAtivos] = useState([]);
+  const [notaMinima, setNotaMinima] = useState(0);
   const [radiusKm, setRadiusKm] = useState(0.5);
   const [radiusModalVisible, setRadiusModalVisible] = useState(false);
   const [radiusDraft, setRadiusDraft] = useState(0.5);
@@ -76,7 +77,13 @@ export default function Map() {
       const filtrosArray = JSON.parse(params.filtros);
       setFiltrosAtivos(filtrosArray);
     }
-  }, [params.filtros]);
+    if (params.notaMinima) {
+      const nota = parseFloat(params.notaMinima);
+      if (!isNaN(nota)) {
+        setNotaMinima(nota);
+      }
+    }
+  }, [params.filtros, params.notaMinima]);
 
   // Solicita permissão e obtém localização atual
   useEffect(() => {
@@ -205,8 +212,12 @@ export default function Map() {
       }
       
       const filtrados = filterPlacesWithinRadius(resultados, localizacaoAtual, radiusMeters);
+      const comNotaMinima = notaMinima > 0
+        ? filtrados.filter(lugar => (lugar.rating || 0) >= notaMinima)
+        : filtrados;
+      
       if (requestSeqRef.current === requestId) {
-        setLugares(filtrados);
+        setLugares(comNotaMinima);
       }
     } catch (error) {
       console.error('Erro ao buscar lugares:', error);
@@ -216,7 +227,7 @@ export default function Map() {
       setShowFetchProgress(false);
       setProgressPercent(100);
     }
-  }, [localizacaoAtual, filtrosAtivos, filtrosParaTipos]);
+  }, [localizacaoAtual, filtrosAtivos, filtrosParaTipos, notaMinima]);
 
   // Busca lugares quando localização ou filtros mudam, mas desacelera repetições
   useEffect(() => {
@@ -232,22 +243,24 @@ export default function Map() {
   }, []);
 
   /**
-   * Realiza busca por texto com base no raio atual.
+   * Realiza busca por texto SEM considerar filtros ou raio.
+   * A busca por texto ignora todos os filtros ativos e controles de range.
    */
   const realizarBusca = async () => {
     if (!buscaTexto.trim() || !localizacaoAtual) return;
 
     setBuscando(true);
     try {
+      // Usa raio generoso (50km) para não limitar buscas por texto
       const resultados = await buscarPorTexto(
         buscaTexto,
         localizacaoAtual.latitude,
         localizacaoAtual.longitude,
-        kmToMeters(radiusKm)
+        50000 // 50km em metros
       );
       
-      const filtrados = filterPlacesWithinRadius(resultados, localizacaoAtual, kmToMeters(radiusKm));
-      setLugares(filtrados);
+      // Define resultados diretamente sem aplicar filtros de raio ou nota
+      setLugares(resultados);
     } catch (error) {
       console.error('Erro ao buscar:', error);
       Alert.alert('Erro', 'Não foi possível realizar a busca.');
@@ -264,7 +277,7 @@ export default function Map() {
       params: { 
         placeId: lugar.place_id,
         name: lugar.name,
-        address: lugar.vicinity,
+        address: lugar.vicinity || lugar.formatted_address || '',
         rating: lugar.rating || 0,
         totalRatings: lugar.user_ratings_total || 0,
         types: JSON.stringify(lugar.types || []),
@@ -325,7 +338,10 @@ export default function Map() {
   const abrirFiltros = () => {
     router.push({
       pathname: '/filtros',
-      params: { selecionados: JSON.stringify(filtrosAtivos) },
+      params: { 
+        selecionados: JSON.stringify(filtrosAtivos),
+        notaMinima: notaMinima.toString()
+      },
     });
   };
 

@@ -1,17 +1,60 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
+import { useAuth } from '../contexts/AuthContext';
 
-/**
- * Tela de autenticação básica que captura email/senha antes de redirecionar.
- */
+/** Login com autenticação JWT e redirecionamento automático para registro se email não encontrado */
 export default function LoginScreen() {
+  const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogin() {
+    if (!email.trim() || !senha) {
+      Alert.alert('Erro', 'Informe email e senha');
+      return;
+    }
+    setLoading(true);
+    try {
+      await signIn(email.trim(), senha);
+      router.replace('/inicio');
+    } catch (error) {
+      if (error.code === 'USER_NOT_FOUND') {
+        router.push({
+          pathname: '/register',
+          params: {
+            emailInicial: email.trim(),
+            motivo: 'Email não encontrado. Crie sua conta.'
+          }
+        });
+      } else if (error.code === 'INVALID_PASSWORD') {
+        Alert.alert('Erro', 'Senha incorreta');
+      } else {
+        Alert.alert('Erro', error.message || 'Falha no login');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Login</Text>
+      <Text style={styles.title}>Bora Sair</Text>
+
+
+      <TouchableOpacity style={[styles.googleButton, loading && styles.buttonDisabled]} disabled={loading}>
+        <Ionicons name="logo-google" size={22} color="#fff" style={{ marginRight: 8 }} />
+        <Text style={styles.googleButtonText}>Continuar com Google</Text>
+      </TouchableOpacity>
+
+
+      <View style={styles.dividerContainer}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>ou</Text>
+        <View style={styles.dividerLine} />
+      </View>
 
       <TextInput
         style={styles.input}
@@ -21,6 +64,7 @@ export default function LoginScreen() {
         autoCapitalize="none"
         value={email}
         onChangeText={setEmail}
+        editable={!loading}
       />
 
       <TextInput
@@ -30,16 +74,24 @@ export default function LoginScreen() {
         secureTextEntry
         value={senha}
         onChangeText={setSenha}
+        editable={!loading}
       />
 
       <TouchableOpacity
-        style={styles.button}
-        onPress={() => router.push('/inicio')}
+        style={[styles.button, loading && styles.buttonDisabled]}
+        onPress={handleLogin}
+        disabled={loading}
       >
-      <Text style={styles.buttonText}>Entrar</Text>
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Entrar</Text>}
       </TouchableOpacity>
 
-
+      <TouchableOpacity
+        style={styles.linkButton}
+        onPress={() => router.push('/register')}
+        disabled={loading}
+      >
+        <Text style={styles.linkText}>Não tem conta? Registrar</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -78,9 +130,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
   },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '85%',
+    backgroundColor: '#DB4437',
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  googleButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '85%',
+    marginBottom: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#333',
+  },
+  dividerText: {
+    color: '#666',
+    marginHorizontal: 10,
+    fontSize: 14,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   buttonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+  },
+  linkButton: {
+    marginTop: 20,
+  },
+  linkText: {
+    color: '#34A853',
+    fontSize: 16,
   },
 });

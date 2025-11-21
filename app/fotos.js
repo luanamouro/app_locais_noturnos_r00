@@ -11,9 +11,7 @@ import {
     View,
 } from "react-native";
 
-/**
- * Tela de upload/avaliação que prepara o envio de fotos e comentários.
- */
+/** Galeria de fotos com sistema de avaliação e comentários */
 export default function Fotos() {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");

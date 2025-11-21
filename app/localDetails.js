@@ -17,21 +17,21 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { buscarDetalhesLugar } from '../services/googlePlaces';
+import { buscarDetalhesLugar } from '../lib/services/googlePlaces';
+import { useAuth } from '../contexts/AuthContext';
+import { favoriteAPI } from '../services/api';
 
-/**
- * Sheet de detalhes que mostra dados ricos do lugar selecionado.
- */
+/** Detalhes completos do local: fotos, avaliações, horários, favoritos e compartilhamento multi-plataforma */
 export default function LocalDetails() {
   const params = useLocalSearchParams();
+  const { user, token } = useAuth();
   const [detalhes, setDetalhes] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [loadingFavorite, setLoadingFavorite] = useState(false);
 
-  /**
-   * Recupera os detalhes completos do Place ID recebido por parâmetro.
-   */
-  /** Carrega os detalhes completos do lugar usando a Places Details API. */
+  /** Busca detalhes completos do local via Places Details API */
   const carregarDetalhes = useCallback(async () => {
     try {
       if (params.placeId) {
@@ -48,8 +48,60 @@ export default function LocalDetails() {
     carregarDetalhes();
   }, [carregarDetalhes]);
 
-  /** Abre o aplicativo de mapas nativo para navegação até o local. */
-  /** Abre o aplicativo de mapas adequado apontando para o local atual. */
+  /** Verifica se local está favoritado pelo usuário autenticado */
+  const verificarFavorito = useCallback(async () => {
+    if (!user || !token || !params.placeId) return;
+    
+    try {
+      const favorito = await favoriteAPI.checkFavorite(token, params.placeId);
+      setIsFavorite(favorito);
+    } catch (error) {
+      console.error('Erro ao verificar favorito:', error);
+    }
+  }, [user, token, params.placeId]);
+
+  useEffect(() => {
+    verificarFavorito();
+  }, [verificarFavorito]);
+
+  /** Adiciona/remove local dos favoritos com validação de login */
+  const toggleFavorito = async () => {
+    if (!user) {
+      Alert.alert('Login necessário', 'Faça login para favoritar locais');
+      return;
+    }
+
+    if (!token || !params.placeId) return;
+
+    setLoadingFavorite(true);
+    try {
+      if (isFavorite) {
+        await favoriteAPI.removeFavorite(token, params.placeId);
+        setIsFavorite(false);
+        Alert.alert('✓', 'Removido dos favoritos');
+      } else {
+        await favoriteAPI.addFavorite(token, {
+          googlePlaceId: params.placeId,
+          name: params.name || detalhes?.name || 'Local',
+          address: params.address || detalhes?.formatted_address,
+          latitude: params.latitude || detalhes?.geometry?.location?.lat,
+          longitude: params.longitude || detalhes?.geometry?.location?.lng,
+          types: detalhes?.types || [],
+          rating: params.rating || detalhes?.rating,
+          userRatingsTotal: detalhes?.user_ratings_total
+        });
+        setIsFavorite(true);
+        Alert.alert('✓', 'Adicionado aos favoritos');
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar favorito:', error);
+      Alert.alert('Erro', error.message || 'Erro ao atualizar favorito');
+    } finally {
+      setLoadingFavorite(false);
+    }
+  };
+
+  /** Abre app de mapas nativo (Apple Maps, Google Maps ou web) para navegação */
   const abrirMaps = () => {
     const url = Platform.select({
       ios: `maps://maps.apple.com/?q=${params.latitude},${params.longitude}`,
@@ -59,8 +111,7 @@ export default function LocalDetails() {
     Linking.openURL(url);
   };
 
-  /** Dispara o fluxo de compartilhamento padrão com os dados do local. */
-  /** Link canônico do local (Google Maps) usado em todos os compartilhamentos. */
+  /** URL do Google Maps para compartilhamento (lat/lng ou place_id) */
   const shareLink = useMemo(() => {
     if (params.latitude && params.longitude) {
       return `https://www.google.com/maps/search/?api=1&query=${params.latitude},${params.longitude}&query_place_id=${params.placeId || ''}`;
@@ -71,7 +122,7 @@ export default function LocalDetails() {
     return 'https://maps.google.com';
   }, [params.latitude, params.longitude, params.placeId]);
 
-  /** Mensagem consolidada com nome/endereço para reutilizar nas ações de share. */
+  /** Mensagem formatada: nome + endereço + link */
   const shareMessage = useMemo(() => {
     const nomeLocal = params.name || 'Local imperdível';
     const enderecoLocal = params.address ? ` - ${params.address}` : '';
@@ -81,7 +132,7 @@ export default function LocalDetails() {
   const encodedMessage = useMemo(() => encodeURIComponent(shareMessage), [shareMessage]);
   const encodedLink = useMemo(() => encodeURIComponent(shareLink), [shareLink]);
 
-  /** Configuração da grade de apps exibida no modal de compartilhamento. */
+  /** Opções de compartilhamento: WhatsApp, Instagram, X, Mensagens, Facebook */
   const shareOptions = useMemo(() => ([
     { id: 'whatsapp', icon: 'logo-whatsapp', label: 'WhatsApp' },
     { id: 'instagram', icon: 'logo-instagram', label: 'Instagram' },
@@ -96,7 +147,7 @@ export default function LocalDetails() {
     setShareModalVisible(true);
   };
 
-  /** Tenta abrir um esquema específico com fallback web e trata falhas de deep link. */
+  /** Tenta deep link primário, fallback web, ou alerta se indisponível */
   const openUrl = useCallback(async (primary, fallback) => {
     try {
       if (primary) {
@@ -119,7 +170,7 @@ export default function LocalDetails() {
     }
   }, []);
 
-  /** Executa a ação adequada (deep link ou Share API) para cada ícone selecionado. */
+  /** Executa ação de compartilhamento via deep link ou Share API */
   const handleShareOption = useCallback(async (optionId) => {
     switch (optionId) {
       case 'whatsapp': {
@@ -159,7 +210,7 @@ export default function LocalDetails() {
     }
   }, [encodedMessage, encodedLink, openUrl, shareMessage]);
 
-  /** Traduz tipos padrão do Google Places para rótulos em português. */
+  /** Traduz tipos do Google Places (bar, restaurant, night_club) para português */
   const traduzirTipo = (tipo) => {
     const traducoes = {
       'bar': 'Bar',
@@ -193,13 +244,11 @@ export default function LocalDetails() {
     .join(' • ');
   const estaAberto = params.isOpen === 'true';
 
-  // Fotos do Google Places
   const fotos = detalhes?.photos?.slice(0, 5).map((photo, index) => ({
     id: index.toString(),
     url: `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photo.photo_reference}&key=${process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}`
   })) || [];
 
-  // Avaliações do Google Places
   const avaliacoes = detalhes?.reviews?.map((review, index) => ({
     id: index.toString(),
     usuario: review.author_name,
@@ -210,16 +259,31 @@ export default function LocalDetails() {
 
   return (
     <View style={styles.overlayContainer}>
-      {/* Botão Compartilhar */}
-      <TouchableOpacity style={styles.shareButton} onPress={compartilhar}>
-        <Ionicons name="share-social-outline" size={28} color="#fff" />
-      </TouchableOpacity>
+      <View style={styles.actionButtons}>
+        <TouchableOpacity 
+          style={styles.favoriteButton} 
+          onPress={toggleFavorito}
+          disabled={loadingFavorite}
+        >
+          {loadingFavorite ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Ionicons 
+              name={isFavorite ? "heart" : "heart-outline"} 
+              size={28} 
+              color="#fff" 
+            />
+          )}
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.shareButton} onPress={compartilhar}>
+          <Ionicons name="share-social-outline" size={28} color="#fff" />
+        </TouchableOpacity>
+      </View>
 
-      {/* Conteúdo principal */}
       <View style={styles.sheet}>
         <ScrollView showsVerticalScrollIndicator={false}>
           
-          {/* Status Aberto/Fechado */}
           {estaAberto !== undefined && (
             <View style={[styles.statusBadge, { backgroundColor: estaAberto ? '#4CAF50' : '#F44336' }]}>
               <Text style={styles.statusText}>
@@ -228,18 +292,15 @@ export default function LocalDetails() {
             </View>
           )}
 
-          {/* Título */}
           <Text style={styles.title}>{nome}</Text>
           <Text style={styles.subtitle}>{tiposFormatados || 'Estabelecimento'}</Text>
 
-          {/* Endereço */}
           <TouchableOpacity style={styles.addressRow} onPress={abrirMaps}>
             <Ionicons name="location" size={20} color="#6C47FF" />
             <Text style={styles.addressText}>{endereco}</Text>
             <Ionicons name="chevron-forward" size={20} color="#6C47FF" />
           </TouchableOpacity>
 
-          {/* Score */}
           {rating > 0 && (
             <View style={styles.scoreRow}>
               <Ionicons name="star" size={22} color="#FFD700" />
@@ -249,7 +310,6 @@ export default function LocalDetails() {
             </View>
           )}
 
-          {/* Fotos */}
           {fotos.length > 0 && (
             <>
               <Text style={styles.sectionTitle}>Fotos</Text>
@@ -269,7 +329,6 @@ export default function LocalDetails() {
             </>
           )}
 
-          {/* Informações Adicionais */}
           {detalhes && (
             <>
               {detalhes.formatted_phone_number && (
@@ -301,7 +360,6 @@ export default function LocalDetails() {
             </>
           )}
 
-          {/* Avaliações */}
           {avaliacoes.length > 0 && (
             <>
               <Text style={styles.sectionTitle}>Avaliações</Text>
@@ -331,7 +389,6 @@ export default function LocalDetails() {
         </ScrollView>
       </View>
 
-      {/* Botão Voltar */}
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => router.back()}
@@ -527,14 +584,31 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 50,
   },
-  shareButton: {
+  actionButtons: {
     position: "absolute",
     top: Platform.OS === 'ios' ? 50 : 40,
     right: 20,
+    flexDirection: 'row',
+    gap: 12,
+    zIndex: 5,
+  },
+  favoriteButton: {
     backgroundColor: "rgba(0,0,0,0.7)",
     padding: 12,
     borderRadius: 50,
-    zIndex: 5,
+    width: 52,
+    height: 52,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shareButton: {
+    backgroundColor: "rgba(0,0,0,0.7)",
+    padding: 12,
+    borderRadius: 50,
+    width: 52,
+    height: 52,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   shareModalBackdrop: {
     flex: 1,

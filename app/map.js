@@ -16,9 +16,9 @@ import {
   buscarPorTexto,
   buscarLugaresProximos as buscarLugaresPorTipo,
   kmToMeters,
-} from "../services/googlePlaces";
-import { VENUE_TYPES, getVenueConfigByTypes } from "../constants/venueTypes";
-import { filterPlacesWithinRadius } from "../utils/distance";
+} from "../lib/services/googlePlaces";
+import { VENUE_TYPES, getVenueConfigByTypes } from "../lib/constants/venueTypes";
+import { filterPlacesWithinRadius } from "../lib/utils/distance";
 
 /**
  * Componente principal do mapa na Web.
@@ -35,6 +35,7 @@ export default function MapWeb() {
   const [buscaTexto, setBuscaTexto] = useState("");
   const [lugares, setLugares] = useState([]);
   const [filtrosAtivos, setFiltrosAtivos] = useState([]);
+  const [notaMinima, setNotaMinima] = useState(0);
   const [localizacaoAtual, setLocalizacaoAtual] = useState(null);
   const [radiusKm, setRadiusKm] = useState(1);
   const [radiusModalVisible, setRadiusModalVisible] = useState(false);
@@ -64,7 +65,13 @@ export default function MapWeb() {
         setFiltrosAtivos(filtrosArray);
       } catch {}
     }
-  }, [params.filtros]);
+    if (params.notaMinima) {
+      const nota = parseFloat(params.notaMinima);
+      if (!isNaN(nota)) {
+        setNotaMinima(nota);
+      }
+    }
+  }, [params.filtros, params.notaMinima]);
 
   useEffect(() => {
     obterLocalizacao();
@@ -144,8 +151,12 @@ export default function MapWeb() {
         );
       }
       const filtrados = filterPlacesWithinRadius(resultados, localizacaoAtual, radiusMeters);
+      const comNotaMinima = notaMinima > 0
+        ? filtrados.filter(lugar => (lugar.rating || 0) >= notaMinima)
+        : filtrados;
+      
       if (requestSeqRef.current === requestId) {
-        setLugares(filtrados);
+        setLugares(comNotaMinima);
       }
     } catch (error) {
       console.error("Erro ao buscar lugares (web):", error);
@@ -153,23 +164,25 @@ export default function MapWeb() {
     if (requestSeqRef.current === requestId) {
       setBuscando(false);
     }
-  }, [localizacaoAtual, filtrosAtivos, radiusKm, filtrosParaTipos]);
+  }, [localizacaoAtual, filtrosAtivos, radiusKm, filtrosParaTipos, notaMinima]);
 
   /**
-   * Realiza busca por texto com base no raio atual.
+   * Realiza busca por texto SEM considerar filtros ou raio.
+   * A busca por texto ignora todos os filtros ativos e controles de range.
    */
   const realizarBusca = async () => {
     if (!buscaTexto.trim() || !localizacaoAtual) return;
     setBuscando(true);
     try {
+      // Usa raio generoso (50km) para não limitar buscas por texto
       const resultados = await buscarPorTexto(
         buscaTexto,
         localizacaoAtual.latitude,
         localizacaoAtual.longitude,
-        kmToMeters(radiusKm)
+        50000 // 50km em metros
       );
-      const filtrados = filterPlacesWithinRadius(resultados, localizacaoAtual, kmToMeters(radiusKm));
-      setLugares(filtrados);
+      // Define resultados diretamente sem aplicar filtros de raio ou nota
+      setLugares(resultados);
     } catch (error) {
       console.error("Erro ao buscar (web):", error);
     }
@@ -185,7 +198,7 @@ export default function MapWeb() {
       params: {
         placeId: lugar.place_id,
         name: lugar.name,
-        address: lugar.vicinity,
+        address: lugar.vicinity || lugar.formatted_address || '',
         rating: lugar.rating || 0,
         totalRatings: lugar.user_ratings_total || 0,
         types: JSON.stringify(lugar.types || []),
@@ -242,7 +255,10 @@ export default function MapWeb() {
   const abrirFiltros = () => {
     router.push({
       pathname: "/filtros",
-      params: { selecionados: JSON.stringify(filtrosAtivos) },
+      params: { 
+        selecionados: JSON.stringify(filtrosAtivos),
+        notaMinima: notaMinima.toString()
+      },
     });
   };
 

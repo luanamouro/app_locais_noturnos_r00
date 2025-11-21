@@ -3,26 +3,20 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-/**
- * Hub pós-login com atalhos para mapa, perfil e recompensas.
- */
+/** Menu principal com navegação para mapa, perfil, recompensas e favoritos */
 export default function Inicio() {
   return (
     <View style={styles.container}>
-
-      {/* HEADER */}
       <View style={styles.header}>
         <Text style={styles.title}>Início</Text>
-
         <TouchableOpacity
           style={styles.userButton}
-          onPress={() => router.push('/perfil')}   // tela do usuário (pode criar depois)
+          onPress={() => router.push('/perfil')}
         >
           <Ionicons name="person-circle-outline" size={40} color="#fff" />
         </TouchableOpacity>
       </View>
 
-      {/* BOTÃO PRINCIPAL */}
       <TouchableOpacity
         style={styles.mainButton}
         onPress={() => router.push('/map')}
@@ -30,13 +24,20 @@ export default function Inicio() {
         <Text style={styles.mainButtonText}>Quer ir aonde?</Text>
       </TouchableOpacity>
 
-      {/* BOTÃO RECOMPENSAS */}
       <TouchableOpacity
         style={styles.rewardsButton}
-        onPress={() => router.push('/recompensas')} 
+        onPress={() => router.push('/recompensas')}
       >
         <Ionicons name="star" size={22} color="#fff" style={{ marginRight: 6 }} />
         <Text style={styles.rewardsButtonText}>Recompensas</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.favoritesButton}
+        onPress={() => router.push('/favoritos')}
+      >
+        <Ionicons name="heart" size={22} color="#fff" style={{ marginRight: 6 }} />
+        <Text style={styles.favoritesButtonText}>Favoritos</Text>
       </TouchableOpacity>
 
     </View>
@@ -94,6 +95,22 @@ const styles = StyleSheet.create({
   },
 
   rewardsButtonText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+
+  favoritesButton: {
+    flexDirection: 'row',
+    backgroundColor: '#FF6B6B',
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+  },
+
+  favoritesButtonText: {
     color: '#fff',
     fontSize: 20,
     fontWeight: '700',

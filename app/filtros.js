@@ -1,20 +1,16 @@
-/**
- * Tela de Filtros
- * - Permite selecionar/desselecionar tipos de estabelecimentos.
- * - Aplica filtros retornando à tela do mapa.
- */
+/** Filtros de tipos de estabelecimentos e avaliação mínima para busca no mapa */
 import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Platform } from "react-native";
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { VENUE_TYPE_LIST } from "../constants/venueTypes";
+import Slider from '@react-native-community/slider';
+import { VENUE_TYPE_LIST } from "../lib/constants/venueTypes";
 
-/**
- * Lista interativa que envia os filtros selecionados de volta para o mapa.
- */
+/** Filtros interativos com seleção múltipla e aplicação via router params */
 export default function Filtros() {
   const params = useLocalSearchParams();
   const [selecionados, setSelecionados] = useState([]);
+  const [notaMinima, setNotaMinima] = useState(0);
 
   useEffect(() => {
     if (params.selecionados) {
@@ -27,9 +23,15 @@ export default function Filtros() {
         // ignore parsing errors
       }
     }
-  }, [params.selecionados]);
+    if (params.notaMinima) {
+      const nota = parseFloat(params.notaMinima);
+      if (!isNaN(nota)) {
+        setNotaMinima(nota);
+      }
+    }
+  }, [params.selecionados, params.notaMinima]);
 
-  /** Alterna a seleção de um filtro específico. */
+  /** Adiciona/remove filtro da seleção */
   function toggleFiltro(item) {
     if (selecionados.includes(item)) {
       setSelecionados(selecionados.filter((f) => f !== item));
@@ -38,17 +40,21 @@ export default function Filtros() {
     }
   }
 
-  /** Persiste os filtros escolhidos e retorna ao mapa. */
+  /** Envia filtros selecionados ao mapa via router params */
   function aplicarFiltros() {
     router.replace({
       pathname: '/map',
-      params: { filtros: JSON.stringify(selecionados) }
+      params: { 
+        filtros: JSON.stringify(selecionados),
+        notaMinima: notaMinima.toString()
+      }
     });
   }
 
-  /** Remove todos os filtros marcados pelo usuário. */
+  /** Reseta todos os filtros para valores padrão */
   function limparFiltros() {
     setSelecionados([]);
+    setNotaMinima(0);
   }
 
   return (
@@ -67,6 +73,39 @@ export default function Filtros() {
       </View>
 
       <ScrollView style={styles.lista}>
+        <View style={styles.secaoAvaliacao}>
+          <View style={styles.secaoHeader}>
+            <Ionicons name="star" size={24} color="#FFD700" />
+            <Text style={styles.secaoTitulo}>Avaliação Mínima</Text>
+          </View>
+          <View style={styles.sliderContainer}>
+            <Text style={styles.notaTexto}>
+              {notaMinima === 0 ? 'Sem filtro' : `${notaMinima.toFixed(1)}+ estrelas`}
+            </Text>
+            <Slider
+              style={styles.slider}
+              minimumValue={0}
+              maximumValue={5}
+              step={0.5}
+              value={notaMinima}
+              onValueChange={setNotaMinima}
+              minimumTrackTintColor="#FFD700"
+              maximumTrackTintColor="#333"
+              thumbTintColor="#FFD700"
+            />
+            <View style={styles.notasContainer}>
+              <Text style={styles.notaLabel}>0</Text>
+              <Text style={styles.notaLabel}>2.5</Text>
+              <Text style={styles.notaLabel}>5.0</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.secaoHeader}>
+          <Ionicons name="business" size={24} color="#6C47FF" />
+          <Text style={styles.secaoTitulo}>Tipos de Estabelecimentos</Text>
+        </View>
+
         {VENUE_TYPE_LIST.map((item) => (
           <TouchableOpacity
             key={item.id}
@@ -102,9 +141,11 @@ export default function Filtros() {
       </ScrollView>
 
       <View style={styles.footer}>
-        {selecionados.length > 0 && (
+        {(selecionados.length > 0 || notaMinima > 0) && (
           <Text style={styles.countText}>
-            {selecionados.length} {selecionados.length === 1 ? 'filtro selecionado' : 'filtros selecionados'}
+            {selecionados.length > 0 && `${selecionados.length} tipo${selecionados.length > 1 ? 's' : ''}`}
+            {selecionados.length > 0 && notaMinima > 0 && ' • '}
+            {notaMinima > 0 && `nota ≥ ${notaMinima.toFixed(1)}`}
           </Text>
         )}
         <TouchableOpacity
@@ -193,6 +234,48 @@ const styles = StyleSheet.create({
   },
   textoItemSelecionado: {
     color: '#fff',
+  },
+  secaoAvaliacao: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: '#333',
+  },
+  secaoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  secaoTitulo: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+    marginLeft: 10,
+  },
+  sliderContainer: {
+    paddingHorizontal: 4,
+  },
+  notaTexto: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFD700',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  slider: {
+    width: '100%',
+    height: 40,
+  },
+  notasContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  notaLabel: {
+    fontSize: 12,
+    color: '#999',
   },
   footer: {
     paddingHorizontal: 20,
