@@ -18,15 +18,20 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { buscarDetalhesLugar } from '../services/googlePlaces';
+import { useAuth } from '../contexts/AuthContext';
+import { favoriteAPI } from '../services/api';
 
 /**
  * Sheet de detalhes que mostra dados ricos do lugar selecionado.
  */
 export default function LocalDetails() {
   const params = useLocalSearchParams();
+  const { user, token } = useAuth();
   const [detalhes, setDetalhes] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [loadingFavorite, setLoadingFavorite] = useState(false);
 
   /**
    * Recupera os detalhes completos do Place ID recebido por parâmetro.
@@ -47,6 +52,59 @@ export default function LocalDetails() {
   useEffect(() => {
     carregarDetalhes();
   }, [carregarDetalhes]);
+
+  /** Verifica se o local está nos favoritos do usuário. */
+  const verificarFavorito = useCallback(async () => {
+    if (!user || !token || !params.placeId) return;
+    
+    try {
+      const favorito = await favoriteAPI.checkFavorite(token, params.placeId);
+      setIsFavorite(favorito);
+    } catch (error) {
+      console.error('Erro ao verificar favorito:', error);
+    }
+  }, [user, token, params.placeId]);
+
+  useEffect(() => {
+    verificarFavorito();
+  }, [verificarFavorito]);
+
+  /** Toggle favorito: adiciona ou remove dos favoritos. */
+  const toggleFavorito = async () => {
+    if (!user) {
+      Alert.alert('Login necessário', 'Faça login para favoritar locais');
+      return;
+    }
+
+    if (!token || !params.placeId) return;
+
+    setLoadingFavorite(true);
+    try {
+      if (isFavorite) {
+        await favoriteAPI.removeFavorite(token, params.placeId);
+        setIsFavorite(false);
+        Alert.alert('✓', 'Removido dos favoritos');
+      } else {
+        await favoriteAPI.addFavorite(token, {
+          googlePlaceId: params.placeId,
+          name: params.name || detalhes?.name || 'Local',
+          address: params.address || detalhes?.formatted_address,
+          latitude: params.latitude || detalhes?.geometry?.location?.lat,
+          longitude: params.longitude || detalhes?.geometry?.location?.lng,
+          types: detalhes?.types || [],
+          rating: params.rating || detalhes?.rating,
+          userRatingsTotal: detalhes?.user_ratings_total
+        });
+        setIsFavorite(true);
+        Alert.alert('✓', 'Adicionado aos favoritos');
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar favorito:', error);
+      Alert.alert('Erro', error.message || 'Erro ao atualizar favorito');
+    } finally {
+      setLoadingFavorite(false);
+    }
+  };
 
   /** Abre o aplicativo de mapas nativo para navegação até o local. */
   /** Abre o aplicativo de mapas adequado apontando para o local atual. */
@@ -210,10 +268,28 @@ export default function LocalDetails() {
 
   return (
     <View style={styles.overlayContainer}>
-      {/* Botão Compartilhar */}
-      <TouchableOpacity style={styles.shareButton} onPress={compartilhar}>
-        <Ionicons name="share-social-outline" size={28} color="#fff" />
-      </TouchableOpacity>
+      {/* Botões Favorito e Compartilhar */}
+      <View style={styles.actionButtons}>
+        <TouchableOpacity 
+          style={styles.favoriteButton} 
+          onPress={toggleFavorito}
+          disabled={loadingFavorite}
+        >
+          {loadingFavorite ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Ionicons 
+              name={isFavorite ? "heart" : "heart-outline"} 
+              size={28} 
+              color="#fff" 
+            />
+          )}
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.shareButton} onPress={compartilhar}>
+          <Ionicons name="share-social-outline" size={28} color="#fff" />
+        </TouchableOpacity>
+      </View>
 
       {/* Conteúdo principal */}
       <View style={styles.sheet}>
@@ -527,14 +603,31 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 50,
   },
-  shareButton: {
+  actionButtons: {
     position: "absolute",
     top: Platform.OS === 'ios' ? 50 : 40,
     right: 20,
+    flexDirection: 'row',
+    gap: 12,
+    zIndex: 5,
+  },
+  favoriteButton: {
     backgroundColor: "rgba(0,0,0,0.7)",
     padding: 12,
     borderRadius: 50,
-    zIndex: 5,
+    width: 52,
+    height: 52,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shareButton: {
+    backgroundColor: "rgba(0,0,0,0.7)",
+    padding: 12,
+    borderRadius: 50,
+    width: 52,
+    height: 52,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   shareModalBackdrop: {
     flex: 1,

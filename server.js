@@ -6,6 +6,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import userRoutes from './lib/api/userRoutes.js';
+import favoriteRoutes from './lib/api/favoriteRoutes.js';
 import logger from './lib/utils/logger.js';
 
 // Carrega variáveis de ambiente
@@ -40,6 +41,7 @@ app.get('/health', (req, res) => {
 
 // Rotas
 app.use('/api/users', userRoutes);
+app.use('/api/favorites', favoriteRoutes);
 
 // Rota 404
 app.use((req, res) => {

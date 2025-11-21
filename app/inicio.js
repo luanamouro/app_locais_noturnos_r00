@@ -39,6 +39,15 @@ export default function Inicio() {
         <Text style={styles.rewardsButtonText}>Recompensas</Text>
       </TouchableOpacity>
 
+      {/* BOTÃO FAVORITOS */}
+      <TouchableOpacity
+        style={styles.favoritesButton}
+        onPress={() => router.push('/favoritos')} 
+      >
+        <Ionicons name="heart" size={22} color="#fff" style={{ marginRight: 6 }} />
+        <Text style={styles.favoritesButtonText}>Favoritos</Text>
+      </TouchableOpacity>
+
     </View>
   );
 }
@@ -94,6 +103,22 @@ const styles = StyleSheet.create({
   },
 
   rewardsButtonText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+
+  favoritesButton: {
+    flexDirection: 'row',
+    backgroundColor: '#FF6B6B',
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+  },
+
+  favoritesButtonText: {
     color: '#fff',
     fontSize: 20,
     fontWeight: '700',

@@ -54,13 +54,24 @@ async function request(endpoint, options = {}) {
   
   try {
     const response = await fetch(url, config);
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.error || 'Erro na requisição');
+    const raw = await response.text();
+    let parsed;
+    try {
+      parsed = raw ? JSON.parse(raw) : {};
+    } catch (parseErr) {
+      console.warn('[API PARSE FALHOU]', { url, snippet: raw.substring(0,200) });
+      // Fallback: se corpo parecer lista de tipos (ex: "establishment,bar") retornamos objeto embrulhado
+      const trimmed = raw.trim();
+      if (trimmed && !trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+        return { success: false, raw, message: 'Resposta não JSON' };
+      }
+      throw new Error(`Falha ao parsear JSON: ${parseErr.message}. Corpo bruto: ${raw.substring(0,200)}`);
     }
-    
-    return data;
+
+    if (!response.ok) {
+      throw new Error(parsed.error || `Erro na requisição (${response.status})`);
+    }
+    return parsed;
   } catch (error) {
     console.error('API Error:', error);
     throw error;
@@ -149,4 +160,75 @@ export const userAPI = {
   },
 };
 
-export default { userAPI };
+/**
+ * API de favoritos.
+ */
+export const favoriteAPI = {
+  /**
+   * Adiciona um local aos favoritos.
+   * @param {string} token - JWT token
+   * @param {Object} venueData - { googlePlaceId, name?, address?, latitude?, longitude?, types?, rating?, userRatingsTotal? }
+   * @returns {Promise<Object>} Favorito criado
+   */
+  async addFavorite(token, venueData) {
+    const response = await request('/favorites', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: venueData,
+    });
+    return response.data;
+  },
+
+  /**
+   * Remove um local dos favoritos.
+   * @param {string} token - JWT token
+   * @param {string} googlePlaceId - Place ID do Google Maps
+   * @returns {Promise<Object>} Confirmação
+   */
+  async removeFavorite(token, googlePlaceId) {
+    const response = await request(`/favorites/${googlePlaceId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response;
+  },
+
+  /**
+   * Lista todos os favoritos do usuário (ordenados do mais recente ao mais antigo).
+   * @param {string} token - JWT token
+   * @param {number} limit - Limite de resultados (padrão: 50)
+   * @param {number} offset - Offset para paginação (padrão: 0)
+   * @returns {Promise<Array>} Lista de favoritos
+   */
+  async getFavorites(token, limit = 50, offset = 0) {
+    const response = await request(`/favorites?limit=${limit}&offset=${offset}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * Verifica se um local está nos favoritos.
+   * @param {string} token - JWT token
+   * @param {string} googlePlaceId - Place ID do Google Maps
+   * @returns {Promise<boolean>} true se favorito
+   */
+  async checkFavorite(token, googlePlaceId) {
+    const response = await request(`/favorites/check/${googlePlaceId}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data.isFavorite;
+  },
+};
+
+export default { userAPI, favoriteAPI };
